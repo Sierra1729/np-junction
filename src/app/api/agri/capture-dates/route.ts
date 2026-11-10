@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { lookupLandscapeCaptureDate, AgriApiError } from "@/lib/agri-api/client";
-import { latLngToS2CellIdLevel13, s2CellIdToCenterLatLng } from "@/lib/geo/s2";
+import { latLngToS2CellIdLevel13 } from "@/lib/geo/s2";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,20 +19,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const centerCoords =
-      typeof latitude === "number" && typeof longitude === "number"
-        ? { latitude, longitude }
-        : s2CellId ? s2CellIdToCenterLatLng(s2CellId) : undefined;
-
-    const captureDates = await lookupLandscapeCaptureDate(
-      { s2CellId, coordinates: centerCoords },
-      centerCoords
-    );
-    return NextResponse.json({
-      s2CellId,
-      captureDates,
-      latestCaptureDate: captureDates[0] || null,
-    });
+    const captureDates = await lookupLandscapeCaptureDate({ s2CellId });
+    return NextResponse.json({ s2CellId, captureDates });
   } catch (err: unknown) {
     if (err instanceof AgriApiError) {
       return NextResponse.json(

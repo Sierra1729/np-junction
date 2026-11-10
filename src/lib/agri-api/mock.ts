@@ -7,9 +7,7 @@ import {
   LookupLandscapeCaptureDateResponse,
   CaptureDate,
 } from "./types";
-import { latLngToS2CellIdLevel13, s2CellIdToCenterLatLng } from "../geo/s2";
-import { REAL_KOTLI_ARJUN_SINGH_PARCELS } from "./real-parcels";
-import { shiftParcelCluster } from "../geo/turf-utils";
+import { latLngToS2CellIdLevel13 } from "../geo/s2";
 
 export const DEMO_CENTER = {
   latitude: 18.624,
@@ -47,9 +45,8 @@ export function generateDemoFeatures(centerLat: number = 18.624, centerLng: numb
   const lngStep = 0.0014; // ~140 meters
   const rows = 6;
   const cols = 6;
-  // Center grid so that the central cell precisely envelops the requested (centerLat, centerLng) point
-  const baseLat = centerLat - (rows / 2 - 0.5) * latStep;
-  const baseLng = centerLng - (cols / 2 - 0.5) * lngStep;
+  const baseLat = centerLat - (rows / 2) * latStep;
+  const baseLng = centerLng - (cols / 2) * lngStep;
 
   const isNorthIndia = centerLat > 28.0;
 
@@ -216,7 +213,7 @@ export function generateDemoFeatures(centerLat: number = 18.624, centerLng: numb
       const ring = [p1, p2, p3, p4, p1];
 
       const areaSqM = Math.round(9500 + ((row * 7 + col * 13 + latHash) % 11) * 1250);
-      const plusCode = `8V${latHash.toString().padStart(3, "0")}${lngHash.toString().padStart(3, "0")}+${row}${col}M`;
+      const plusCode = `8V${latHash}P${col + 1}+${fieldNumber}M`;
 
       const templateIdx = (fieldNumber - 1) % templates.length;
       const predictions = templates[templateIdx](fieldNumber);
@@ -302,12 +299,9 @@ export function generateDemoFeatures(centerLat: number = 18.624, centerLng: numb
  * Returns mock LookupLandscapeResponse wrapping stringified GeoJSON
  */
 export function getMockLookupResponse(s2CellId: string, centerCoords?: { latitude: number; longitude: number }): LookupLandscapeResponse {
-  const effectiveCenter =
-    s2CellId && s2CellId !== "default"
-      ? s2CellIdToCenterLatLng(s2CellId)
-      : centerCoords || DEMO_CENTER;
-  const isNearKotli = Math.abs(effectiveCenter.latitude - 32.624964) < 0.05 && Math.abs(effectiveCenter.longitude - 74.752361) < 0.05;
-  const fc = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, effectiveCenter.latitude, effectiveCenter.longitude);
+  const fc = centerCoords
+    ? generateDemoFeatures(centerCoords.latitude, centerCoords.longitude)
+    : generateDemoFeatures();
   return {
     landscape: {
       dataVersion: DEMO_DATA_VERSION,
@@ -320,12 +314,9 @@ export function getMockLookupResponse(s2CellId: string, centerCoords?: { latitud
  * Returns mock MonitorLandscapeResponse wrapping stringified GeoJSON
  */
 export function getMockMonitorResponse(s2CellId: string, centerCoords?: { latitude: number; longitude: number }): MonitorLandscapeResponse {
-  const effectiveCenter =
-    s2CellId && s2CellId !== "default"
-      ? s2CellIdToCenterLatLng(s2CellId)
-      : centerCoords || DEMO_CENTER;
-  const isNearKotli = Math.abs(effectiveCenter.latitude - 32.624964) < 0.05 && Math.abs(effectiveCenter.longitude - 74.752361) < 0.05;
-  const fc = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, effectiveCenter.latitude, effectiveCenter.longitude);
+  const fc = centerCoords
+    ? generateDemoFeatures(centerCoords.latitude, centerCoords.longitude)
+    : generateDemoFeatures();
   return {
     monitoredLandscape: {
       dataVersion: DEMO_DATA_VERSION,
@@ -337,7 +328,7 @@ export function getMockMonitorResponse(s2CellId: string, centerCoords?: { latitu
 /**
  * Returns mock capture dates
  */
-export function getMockCaptureDates(centerCoords?: { latitude: number; longitude: number }): LookupLandscapeCaptureDateResponse {
+export function getMockCaptureDates(): LookupLandscapeCaptureDateResponse {
   return {
     captureDates: DEMO_CAPTURE_DATES,
   };

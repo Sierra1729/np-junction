@@ -30,11 +30,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const centerCoords =
-      typeof latitude === "number" && typeof longitude === "number"
-        ? { latitude, longitude }
-        : s2CellIdToCenterLatLng(s2CellId);
-
     const captureDateKey = captureDate
       ? `${captureDate.year}-${captureDate.month}-${captureDate.day}`
       : undefined;
@@ -60,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Fetch from API or Mock
     const requestPayload = {
-      locationSpecifier: { s2CellId, coordinates: centerCoords },
+      locationSpecifier: { s2CellId },
       captureDate,
       dataVersion,
     };
@@ -69,12 +64,16 @@ export async function POST(req: NextRequest) {
     let isMockResult = isMockMode();
 
     try {
-      response = await lookupLandscape(requestPayload, centerCoords);
+      response = await lookupLandscape(requestPayload);
     } catch (err: unknown) {
       // If Google API returns 404 (S2 cell not yet indexed in Google's live preview),
       // generate realistic ALU parcel boundaries centered on the requested location!
       if (err instanceof AgriApiError && err.statusCode === 404) {
-        response = getMockLookupResponse(s2CellId, centerCoords);
+        const center =
+          typeof latitude === "number" && typeof longitude === "number"
+            ? { latitude, longitude }
+            : s2CellIdToCenterLatLng(s2CellId);
+        response = getMockLookupResponse(s2CellId, center);
         isMockResult = true;
       } else {
         throw err;
