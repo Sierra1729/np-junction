@@ -45,6 +45,10 @@ yarn-error.log*
 # firebase
 .firebase
 firebase-debug.log*
+*-adminsdk-*.json
+*firebase-adminsdk*.json
+service-account*.json
+*.serviceAccountKey.json
 
 # typescript
 *.tsbuildinfo
