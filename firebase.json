@@ -1,13 +1,41 @@
 {
   "hosting": {
-    "source": ".",
+    "public": ".firebase/np-junction/hosting",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ],
-    "frameworksBackend": {
-      "region": "us-central1"
-    }
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/dashboard",
+        "destination": "/dashboard.html"
+      },
+      {
+        "source": "/verify",
+        "destination": "/verify.html"
+      },
+      {
+        "source": "/harvest",
+        "destination": "/harvest.html"
+      },
+      {
+        "source": "/members",
+        "destination": "/members.html"
+      },
+      {
+        "source": "/lots",
+        "destination": "/lots.html"
+      },
+      {
+        "source": "/settings",
+        "destination": "/settings.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
   }
 }
