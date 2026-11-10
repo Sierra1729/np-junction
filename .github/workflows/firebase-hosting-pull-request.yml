@@ -16,11 +16,11 @@ jobs:
         env:
           DATABASE_URL: "file:./dev.db"
       - run: node scripts/prepare-hosting.js
-      - name: Deploy to Firebase Hosting via CLI
+      - name: Deploy PR Preview to Firebase Hosting
         env:
-          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NP_JUNCTION }}
+          SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NP_JUNCTION }}
         run: |
-          echo "$FIREBASE_KEY" > "$RUNNER_TEMP/firebase-service-account.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-service-account.json"
-          npx firebase-tools hosting:channel:deploy "pr-${{ github.event.number }}" --project np-junction
-          rm -f "$RUNNER_TEMP/firebase-service-account.json"
+          node -e 'fs.writeFileSync(process.env.HOME + "/service-account.json", process.env.SERVICE_ACCOUNT_KEY)'
+          export GOOGLE_APPLICATION_CREDENTIALS="$HOME/service-account.json"
+          npx firebase-tools hosting:channel:deploy "pr-${{ github.event.number }}" --project np-junction --non-interactive
+          rm -f "$HOME/service-account.json"
