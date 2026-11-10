@@ -30,7 +30,7 @@ import {
   Loader2,
   Satellite,
 } from "lucide-react";
-import { findMatchingField, createOrganicParcelCluster } from "@/lib/geo/turf-utils";
+import { findMatchingField, shiftParcelCluster } from "@/lib/geo/turf-utils";
 import { REAL_KOTLI_ARJUN_SINGH_PARCELS } from "@/lib/agri-api/real-parcels";
 import { generateDemoFeatures, DEMO_CAPTURE_DATES } from "@/lib/agri-api/mock";
 import {
@@ -276,23 +276,10 @@ export default function FpoDashboardPage() {
     }
 
     // 2. Clicked outside default location:
-    // Generate authentic organic parcel cluster for this exact field location!
     setIsFetchingTile(true);
     setTileNotice("Delineating satellite parcel boundaries...");
 
-    const organicCluster = createOrganicParcelCluster(latLng.lat, latLng.lng);
-    setMapFeatures((prev) => mergeFeatureCollections(prev, organicCluster));
-
-    // Find the parcel strictly enveloping the clicked point
-    const clickedParcel =
-      findMatchingField([latLng.lng, latLng.lat], organicCluster.features, 50) ||
-      organicCluster.features[0];
-
-    if (clickedParcel) {
-      handleFieldClick(clickedParcel);
-    }
-
-    // 3. Query Google API asynchronously if reachable
+    // Query Google API asynchronously if reachable
     try {
       const res = await fetch("/api/agri/monitor", {
         method: "POST",
@@ -303,11 +290,43 @@ export default function FpoDashboardPage() {
         const data = await res.json();
         if (data.featureCollection && data.featureCollection.features?.length > 10) {
           setMapFeatures((prev) => mergeFeatureCollections(prev, data.featureCollection));
+          const clickedParcel =
+            findMatchingField([latLng.lng, latLng.lat], data.featureCollection.features, 50) ||
+            data.featureCollection.features[0];
+          if (clickedParcel) {
+            handleFieldClick(clickedParcel);
+          }
+        } else {
+          // Fallback to real cadastre parcel shapes shifted to target location
+          const shiftedCadastre = shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, latLng.lat, latLng.lng);
+          setMapFeatures((prev) => mergeFeatureCollections(prev, shiftedCadastre));
+          const clickedParcel =
+            findMatchingField([latLng.lng, latLng.lat], shiftedCadastre.features, 50) ||
+            shiftedCadastre.features[0];
+          if (clickedParcel) {
+            handleFieldClick(clickedParcel);
+          }
+        }
+      } else {
+        const shiftedCadastre = shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, latLng.lat, latLng.lng);
+        setMapFeatures((prev) => mergeFeatureCollections(prev, shiftedCadastre));
+        const clickedParcel =
+          findMatchingField([latLng.lng, latLng.lat], shiftedCadastre.features, 50) ||
+          shiftedCadastre.features[0];
+        if (clickedParcel) {
+          handleFieldClick(clickedParcel);
         }
       }
       fetchCaptureDates(latLng.lat, latLng.lng);
     } catch {
-      // Offline fallback already active
+      const shiftedCadastre = shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, latLng.lat, latLng.lng);
+      setMapFeatures((prev) => mergeFeatureCollections(prev, shiftedCadastre));
+      const clickedParcel =
+        findMatchingField([latLng.lng, latLng.lat], shiftedCadastre.features, 50) ||
+        shiftedCadastre.features[0];
+      if (clickedParcel) {
+        handleFieldClick(clickedParcel);
+      }
     } finally {
       setIsFetchingTile(false);
       setTileNotice(null);

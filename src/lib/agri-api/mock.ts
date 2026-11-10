@@ -9,6 +9,7 @@ import {
 } from "./types";
 import { latLngToS2CellIdLevel13, s2CellIdToCenterLatLng } from "../geo/s2";
 import { REAL_KOTLI_ARJUN_SINGH_PARCELS } from "./real-parcels";
+import { shiftParcelCluster } from "../geo/turf-utils";
 
 export const DEMO_CENTER = {
   latitude: 18.624,
@@ -306,7 +307,7 @@ export function getMockLookupResponse(s2CellId: string, centerCoords?: { latitud
       ? s2CellIdToCenterLatLng(s2CellId)
       : centerCoords || DEMO_CENTER;
   const isNearKotli = Math.abs(effectiveCenter.latitude - 32.624964) < 0.05 && Math.abs(effectiveCenter.longitude - 74.752361) < 0.05;
-  const fc = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : generateDemoFeatures(effectiveCenter.latitude, effectiveCenter.longitude);
+  const fc = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, effectiveCenter.latitude, effectiveCenter.longitude);
   return {
     landscape: {
       dataVersion: DEMO_DATA_VERSION,
@@ -324,7 +325,7 @@ export function getMockMonitorResponse(s2CellId: string, centerCoords?: { latitu
       ? s2CellIdToCenterLatLng(s2CellId)
       : centerCoords || DEMO_CENTER;
   const isNearKotli = Math.abs(effectiveCenter.latitude - 32.624964) < 0.05 && Math.abs(effectiveCenter.longitude - 74.752361) < 0.05;
-  const fc = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : generateDemoFeatures(effectiveCenter.latitude, effectiveCenter.longitude);
+  const fc = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, effectiveCenter.latitude, effectiveCenter.longitude);
   return {
     monitoredLandscape: {
       dataVersion: DEMO_DATA_VERSION,

@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "np-junction",
     "public": ".firebase/np-junction/hosting",
     "ignore": [
       "firebase.json",

@@ -122,111 +122,70 @@ export function findMatchingField(
 
 
 /**
- * Creates an authentic agricultural parcel cluster around any clicked coordinates.
- * Generates contiguous irregular farm parcel strips sharing realistic field bunds,
- * with deterministic dimensions, natural angular tilts, and multi-season AMED predictions.
+ * Shifts a real parcel FeatureCollection so its centroid lands on (targetLat, targetLng).
+ * Used to show authentic ALU-shaped boundaries (from the real Kotli dataset) anywhere on
+ * the map when the Google API has no coverage for that S2 cell.
+ * Every polygon vertex is offset by the same delta-lat / delta-lng — shapes and relative
+ * positions are preserved exactly, so borders remain crisp and non-overlapping.
  */
-export function createOrganicParcelCluster(lat: number, lng: number): AgriFeatureCollection {
-  const features: AgriFeature[] = [];
-  const latSeed = Math.abs(Math.sin(lat * 10000) * 10000);
-  const lngSeed = Math.abs(Math.cos(lng * 10000) * 10000);
+export function shiftParcelCluster(
+  source: AgriFeatureCollection,
+  targetLat: number,
+  targetLng: number
+): AgriFeatureCollection {
+  const fields = source.features.filter((f) => f.properties.alu_type === "field");
+  if (fields.length === 0) return source;
 
-  // Field strip dimensions (typical Indian smallholder farm parcel: ~45m width, ~95m length)
-  const stripW = 0.00045 + ((latSeed % 5) * 0.00002);
-  const stripH = 0.00090 + ((lngSeed % 7) * 0.00002);
-  const skewX = 0.00018; // natural agricultural field line orientation angle
-
-  // 3x3 contiguous field parcels sharing exact common borders
-  const rows = 3;
-  const cols = 3;
-  const startLat = lat - (rows / 2) * stripH;
-  const startLng = lng - (cols / 2) * stripW;
-
-  const isNorth = lat > 28.0;
-  const latHash = Math.abs(Math.round(lat * 1000)) % 1000;
-  const lngHash = Math.abs(Math.round(lng * 1000)) % 1000;
-
-  const cropPatterns = isNorth
-    ? [
-        { crop1: "Rice", conf1: 0.94, crop2: "Maize" },
-        { crop1: "Wheat", conf1: 0.91, crop2: "Mustard" },
-        { crop1: "Mustard", conf1: 0.89, crop2: "Wheat" },
-        { crop1: "Sugarcane", conf1: 0.95, crop2: "Rice" },
-        { crop1: "Rice", conf1: 0.92, crop2: "Wheat" },
-      ]
-    : [
-        { crop1: "Soybeans", conf1: 0.93, crop2: "Cotton" },
-        { crop1: "Cotton", conf1: 0.90, crop2: "Soybeans" },
-        { crop1: "Gram", conf1: 0.88, crop2: "Wheat" },
-        { crop1: "Sugarcane", conf1: 0.95, crop2: "Soybeans" },
-      ];
-
-  let fieldNum = 1;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const y1 = startLat + r * stripH;
-      const y2 = y1 + stripH;
-      const x1 = startLng + c * stripW + (r * skewX);
-      const x2 = x1 + stripW;
-
-      // Organic agricultural polygon with natural bund vertices
-      const ring: [number, number][] = [
-        [x1, y1],
-        [x2, y1 + (skewX * 0.25)],
-        [x2 + (skewX * 0.35), y2],
-        [x1 + (skewX * 0.35), y2 - (skewX * 0.15)],
-        [x1, y1],
-      ];
-
-      const geom: GeoJsonGeometry = {
-        type: "MultiPolygon",
-        coordinates: [[ring]],
-      };
-
-      const areaSqM = Math.round(calculateAreaSqM(geom)) || 4200;
-      const subCode = (r * cols + c + 10).toString();
-      const plusCode = `8J${latHash.toString().padStart(3, "0")}${lngHash.toString().padStart(3, "0")}+${subCode}`;
-
-      const pattern = cropPatterns[(fieldNum - 1) % cropPatterns.length];
-      const predictions: MonitoringPrediction[] = [
-        {
-          season_id: "Kharif 2026",
-          start_timestamp_sec: 1781503200,
-          end_timestamp_sec: 1792994400,
-          crop_1: pattern.crop1,
-          conf_1: pattern.conf1,
-          crop_2: pattern.crop2,
-          conf_2: 0.05,
-        },
-        {
-          season_id: "Rabi 2025",
-          start_timestamp_sec: 1761986400,
-          end_timestamp_sec: 1774082400,
-          crop_1: isNorth ? "Wheat" : "Gram",
-          conf_1: 0.89,
-        },
-      ];
-
-      features.push({
-        type: "Feature",
-        id: plusCode,
-        geometry: geom,
-        properties: {
-          alu_type: "field",
-          area_sq_m: areaSqM,
-          class_confidence: Number((0.88 + ((r * 3 + c) % 8) / 100).toFixed(2)),
-          capture_timestamp_sec: 1789200000,
-          monitoring_prediction: predictions,
-          plus_code: plusCode,
-        },
-      });
-
-      fieldNum++;
-    }
+  // Compute average centroid of source parcels
+  let sumLat = 0;
+  let sumLng = 0;
+  for (const f of fields) {
+    try {
+      const c = turf.centroid(turf.feature(f.geometry as any));
+      sumLng += c.geometry.coordinates[0];
+      sumLat += c.geometry.coordinates[1];
+    } catch { /* skip bad geometry */ }
   }
+  const srcLat = sumLat / fields.length;
+  const srcLng = sumLng / fields.length;
 
-  return {
-    type: "FeatureCollection",
-    features,
+  const dLat = targetLat - srcLat;
+  const dLng = targetLng - srcLng;
+
+  const latHash = Math.abs(Math.round(targetLat * 1000)) % 1000;
+  const lngHash = Math.abs(Math.round(targetLng * 1000)) % 1000;
+
+  const shiftRing = (ring: number[][]): number[][] =>
+    ring.map(([lng, lat]) => [lng + dLng, lat + dLat]);
+
+  const shiftGeometry = (geom: GeoJsonGeometry): GeoJsonGeometry => {
+    if (geom.type === "Polygon") {
+      return { ...geom, coordinates: (geom.coordinates as number[][][]).map(shiftRing) };
+    }
+    if (geom.type === "MultiPolygon") {
+      return {
+        ...geom,
+        coordinates: (geom.coordinates as number[][][][]).map((poly) =>
+          poly.map(shiftRing)
+        ),
+      };
+    }
+    return geom;
   };
+
+  const shifted = source.features.map((f, i) => {
+    const subCode = (i + 10).toString().padStart(3, "0");
+    const newId = `8J${latHash.toString().padStart(3, "0")}${lngHash.toString().padStart(3, "0")}+${subCode}`;
+    return {
+      ...f,
+      id: newId,
+      geometry: shiftGeometry(f.geometry),
+      properties: {
+        ...f.properties,
+        plus_code: newId,
+      },
+    };
+  });
+
+  return { type: "FeatureCollection", features: shifted };
 }

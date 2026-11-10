@@ -25,7 +25,7 @@ import {
   Plus,
   Satellite,
 } from "lucide-react";
-import { findMatchingField, createOrganicParcelCluster } from "@/lib/geo/turf-utils";
+import { findMatchingField, shiftParcelCluster } from "@/lib/geo/turf-utils";
 import { REAL_KOTLI_ARJUN_SINGH_PARCELS } from "@/lib/agri-api/real-parcels";
 import { generateDemoFeatures, DEMO_CAPTURE_DATES } from "@/lib/agri-api/mock";
 import Papa from "papaparse";
@@ -166,7 +166,9 @@ export default function VerifyClaimPage() {
 
     const isNearKotli = Math.abs(lat - 32.624964) < 0.05 && Math.abs(lng - 74.752361) < 0.05;
     if (!collection || isNearKotli || collection.features.length < 50) {
-      collection = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : (collection || REAL_KOTLI_ARJUN_SINGH_PARCELS);
+      collection = isNearKotli
+        ? REAL_KOTLI_ARJUN_SINGH_PARCELS
+        : (collection && collection.features.length > 0 ? collection : shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, lat, lng));
     }
 
     setMapFeatures((prev) => mergeFeatureCollections(prev, collection!));
@@ -767,7 +769,7 @@ export default function VerifyClaimPage() {
                       return;
                     }
                   }
-                  const cluster = createOrganicParcelCluster(ll.lat, ll.lng);
+                  const cluster = shiftParcelCluster(REAL_KOTLI_ARJUN_SINGH_PARCELS, ll.lat, ll.lng);
                   setMapFeatures((prev) => mergeFeatureCollections(prev, cluster));
                   const matched = findMatchingField([ll.lng, ll.lat], cluster.features, 50) || cluster.features[0];
                   if (matched) {
