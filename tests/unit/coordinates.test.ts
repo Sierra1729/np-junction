@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseCoordinateString } from "../../src/lib/geo/coordinates";
-import { createParcelForPoint, isPointInPolygon } from "../../src/lib/geo/turf-utils";
+import { generateDemoFeatures } from "../../src/lib/agri-api/mock";
+import { findMatchingField } from "../../src/lib/geo/turf-utils";
 
 describe("parseCoordinateString", () => {
   it("parses compact DMS with cardinal letters (e.g. 323729.87 n and 744508.50 e)", () => {
@@ -44,27 +45,29 @@ describe("parseCoordinateString", () => {
   });
 });
 
-describe("createParcelForPoint (Dynamic Land Boundary Detection)", () => {
-  it("creates a valid parcel polygon that strictly encloses the clicked coordinate", () => {
+describe("generateDemoFeatures (Cadastre Grid System Generation)", () => {
+  it("creates a full agricultural grid system of contiguous parcels centered at coordinates", () => {
     const lat = 32.620; // e.g. Sunder farms
     const lng = 74.735;
-    const parcel = createParcelForPoint(lat, lng);
+    const grid = generateDemoFeatures(lat, lng);
 
-    expect(parcel).toBeDefined();
-    expect(parcel.properties.alu_type).toBe("field");
-    expect(parcel.properties.area_sq_m).toBeGreaterThan(1500); // > 0.37 acre
-    expect(parcel.properties.area_sq_m).toBeLessThan(12000); // < 3.0 acres
-    expect(parcel.properties.monitoring_prediction).toBeDefined();
-    expect(parcel.properties.monitoring_prediction?.length).toBeGreaterThan(0);
+    expect(grid).toBeDefined();
+    expect(grid.type).toBe("FeatureCollection");
+    expect(grid.features.length).toBeGreaterThanOrEqual(36);
 
-    // Verify point is inside the generated polygon
-    const isInside = isPointInPolygon([lng, lat], parcel.geometry);
-    expect(isInside).toBe(true);
+    const fields = grid.features.filter((f) => f.properties.alu_type === "field");
+    expect(fields.length).toBe(36);
+    expect(fields[0].properties.area_sq_m).toBeGreaterThan(1500);
+    expect(fields[0].properties.monitoring_prediction).toBeDefined();
+    expect(fields[0].properties.monitoring_prediction?.length).toBeGreaterThan(0);
+
+    const matched = findMatchingField([lng, lat], grid.features, 100);
+    expect(matched).toBeDefined();
   });
 
-  it("generates deterministic and unique IDs for different coordinates", () => {
-    const p1 = createParcelForPoint(32.620, 74.735);
-    const p2 = createParcelForPoint(32.618, 74.765);
-    expect(p1.id).not.toBe(p2.id);
+  it("generates deterministic and unique IDs for different regions", () => {
+    const g1 = generateDemoFeatures(32.620, 74.735);
+    const g2 = generateDemoFeatures(32.618, 74.765);
+    expect(g1.features[0].id).not.toBe(g2.features[0].id);
   });
 });
