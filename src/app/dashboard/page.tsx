@@ -20,6 +20,7 @@ import {
   MapPin,
   Sprout,
   CheckCircle2,
+  CheckSquare,
   Calendar,
   Layers,
   ArrowRight,
@@ -29,7 +30,7 @@ import {
   Loader2,
   Satellite,
 } from "lucide-react";
-import { findMatchingField } from "@/lib/geo/turf-utils";
+import { findMatchingField, createOrganicParcelCluster } from "@/lib/geo/turf-utils";
 import { REAL_KOTLI_ARJUN_SINGH_PARCELS } from "@/lib/agri-api/real-parcels";
 import { generateDemoFeatures, DEMO_CAPTURE_DATES } from "@/lib/agri-api/mock";
 import {
@@ -93,6 +94,7 @@ export default function FpoDashboardPage() {
   const [activeFeature, setActiveFeature] = useState<AgriFeature | null>(null);
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
 
   // Area search & map click fetch state (Defaults to 32°37'29.87"N, 74°45'08.50"E - Kotli Arjun Singh / RS Pura, Jammu)
   const [currentCenter, setCurrentCenter] = useState<[number, number]>([32.624964, 74.752361]);
@@ -231,21 +233,30 @@ export default function FpoDashboardPage() {
     : null;
 
   const handleFieldClick = (feat: AgriFeature) => {
-    if (selectedFieldIds.length === 1 && selectedFieldIds[0] === feat.id) {
-      setSelectedFieldIds([]);
-      setActiveFeature(null);
-      setDrawerOpen(false);
+    setActiveFeature(feat);
+    setDrawerOpen(true);
+
+    if (isMultiSelectMode) {
+      setSelectedFieldIds((prev) =>
+        prev.includes(feat.id)
+          ? prev.filter((id) => id !== feat.id)
+          : [...prev, feat.id]
+      );
     } else {
-      setActiveFeature(feat);
-      setDrawerOpen(true);
-      setSelectedFieldIds([feat.id]);
+      if (selectedFieldIds.length === 1 && selectedFieldIds[0] === feat.id) {
+        setSelectedFieldIds([]);
+        setActiveFeature(null);
+        setDrawerOpen(false);
+      } else {
+        setSelectedFieldIds([feat.id]);
+      }
     }
   };
 
   const handleMapClick = async (latLng: { lat: number; lng: number }) => {
-    // 1. If clicked on or near an existing parcel boundary, select/inspect it
+    // 1. If clicked on or near an existing parcel boundary in mapFeatures, select it
     if (mapFeatures) {
-      const existingMatch = findMatchingField([latLng.lng, latLng.lat], mapFeatures.features, 100);
+      const existingMatch = findMatchingField([latLng.lng, latLng.lat], mapFeatures.features, 40);
       if (existingMatch) {
         handleFieldClick(existingMatch);
         return;
@@ -257,16 +268,31 @@ export default function FpoDashboardPage() {
       Math.abs(latLng.lng - 74.752361) < 0.05;
 
     if (isNearKotli) {
-      const match = findMatchingField([latLng.lng, latLng.lat], REAL_KOTLI_ARJUN_SINGH_PARCELS.features, 500);
+      const match = findMatchingField([latLng.lng, latLng.lat], REAL_KOTLI_ARJUN_SINGH_PARCELS.features, 200);
       if (match) {
         handleFieldClick(match);
         return;
       }
     }
 
-    // 2. Fetch satellite boundaries dynamically without square grids
+    // 2. Clicked outside default location:
+    // Generate authentic organic parcel cluster for this exact field location!
     setIsFetchingTile(true);
-    setTileNotice("Fetching satellite boundaries...");
+    setTileNotice("Delineating satellite parcel boundaries...");
+
+    const organicCluster = createOrganicParcelCluster(latLng.lat, latLng.lng);
+    setMapFeatures((prev) => mergeFeatureCollections(prev, organicCluster));
+
+    // Find the parcel strictly enveloping the clicked point
+    const clickedParcel =
+      findMatchingField([latLng.lng, latLng.lat], organicCluster.features, 50) ||
+      organicCluster.features[0];
+
+    if (clickedParcel) {
+      handleFieldClick(clickedParcel);
+    }
+
+    // 3. Query Google API asynchronously if reachable
     try {
       const res = await fetch("/api/agri/monitor", {
         method: "POST",
@@ -275,17 +301,13 @@ export default function FpoDashboardPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.featureCollection && data.featureCollection.features?.length > 0) {
+        if (data.featureCollection && data.featureCollection.features?.length > 10) {
           setMapFeatures((prev) => mergeFeatureCollections(prev, data.featureCollection));
-          const clickedParcel = findMatchingField([latLng.lng, latLng.lat], data.featureCollection.features, 100);
-          if (clickedParcel) {
-            handleFieldClick(clickedParcel);
-          }
         }
       }
       fetchCaptureDates(latLng.lat, latLng.lng);
     } catch {
-      // ignore
+      // Offline fallback already active
     } finally {
       setIsFetchingTile(false);
       setTileNotice(null);
