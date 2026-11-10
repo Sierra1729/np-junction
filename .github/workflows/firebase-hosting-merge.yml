@@ -17,12 +17,9 @@ jobs:
       - run: npm run build
         env:
           DATABASE_URL: "file:./dev.db"
-      - run: node scripts/prepare-hosting.js
-      - name: Deploy to Firebase Hosting
-        env:
-          SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NP_JUNCTION }}
-        run: |
-          node -e 'fs.writeFileSync(process.env.HOME + "/service-account.json", process.env.SERVICE_ACCOUNT_KEY)'
-          export GOOGLE_APPLICATION_CREDENTIALS="$HOME/service-account.json"
-          npx firebase-tools deploy --only hosting --project np-junction --non-interactive
-          rm -f "$HOME/service-account.json"
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NP_JUNCTION }}
+          channelId: live
+          projectId: np-junction

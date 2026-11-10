@@ -28,7 +28,6 @@ import {
   Sprout,
   Calendar,
   ArrowRight,
-  Satellite,
 } from "lucide-react";
 
 interface MapContainerInnerProps {
@@ -52,91 +51,6 @@ interface MapContainerInnerProps {
   actionHref?: string;
   onActionClick?: () => void;
   onLoadCurrentView?: (center: { lat: number; lng: number }) => void;
-  lastCaptureDate?: string;
-  captureDates?: Array<{ year: number; month: number; day: number }>;
-}
-
-function SatelliteCaptureBadge({
-  lastCaptureDate = "12 Sep 2026",
-  captureDates,
-}: {
-  lastCaptureDate?: string;
-  captureDates?: Array<{ year: number; month: number; day: number }>;
-}) {
-  const [showTooltip, setShowTooltip] = useState(false);
-
-  return (
-    <div className="absolute bottom-3 right-3 sm:right-4 z-1000">
-      <div
-        onClick={() => setShowTooltip(!showTooltip)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-stone-900/90 hover:bg-stone-900 backdrop-blur-md rounded-xl border border-stone-700/70 text-white shadow-md text-[11px] cursor-pointer transition-all select-none"
-        title="Click to view satellite acquisition details"
-      >
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        </span>
-        <Satellite className="w-3.5 h-3.5 text-emerald-400" />
-        <span className="text-stone-300 font-medium hidden sm:inline">Last Image:</span>
-        <span className="font-extrabold text-white">{lastCaptureDate}</span>
-      </div>
-
-      {showTooltip && (
-        <div className="absolute bottom-10 right-0 w-64 bg-stone-900/98 backdrop-blur-xl border border-stone-700/80 rounded-2xl p-3 shadow-2xl text-white space-y-2 text-xs">
-          <div className="flex items-center justify-between pb-1 border-b border-stone-800">
-            <span className="font-bold text-emerald-400 text-[11px] uppercase tracking-wider">
-              Satellite Pass History
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowTooltip(false)}
-              className="text-stone-400 hover:text-white"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="space-y-1 text-[11px]">
-            <div className="flex justify-between font-semibold">
-              <span className="text-stone-300">Latest Pass:</span>
-              <span className="text-emerald-300 font-bold">{lastCaptureDate} (Clear Sky)</span>
-            </div>
-            {captureDates && captureDates.length > 0 ? (
-              captureDates.slice(1, 5).map((cd, i) => {
-                const dt = new Date(cd.year, cd.month - 1, cd.day);
-                const str = dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-                return (
-                  <div key={i} className="flex justify-between text-stone-400">
-                    <span>Prior Pass:</span>
-                    <span>{str}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <>
-                <div className="flex justify-between text-stone-400">
-                  <span>Prior Pass:</span>
-                  <span>24 Jul 2026</span>
-                </div>
-                <div className="flex justify-between text-stone-400">
-                  <span>Rabi Harvest:</span>
-                  <span>10 Mar 2026</span>
-                </div>
-                <div className="flex justify-between text-stone-400">
-                  <span>Baseline:</span>
-                  <span>05 Nov 2025</span>
-                </div>
-              </>
-            )}
-          </div>
-          <div className="pt-1.5 border-t border-stone-800 text-[10px] text-stone-400 space-y-0.5">
-            <div><strong>Constellation:</strong> Sentinel-2 & Landsat-9</div>
-            <div><strong>Revisit Cycle:</strong> Every 5 days</div>
-            <div><strong>AI Model:</strong> Google ALU v2026.09.1</div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function MapClickHandler({ onClick }: { onClick?: (latLng: { lat: number; lng: number }) => void }) {
@@ -274,8 +188,6 @@ export function MapContainerInner({
   actionHref,
   onActionClick,
   onLoadCurrentView,
-  lastCaptureDate = "12 Sep 2026",
-  captureDates,
 }: MapContainerInnerProps) {
   const [basemap, setBasemap] = useState<BasemapType>("google-hybrid");
   const [activeCenter, setActiveCenter] = useState<[number, number]>(center);
@@ -372,7 +284,6 @@ export function MapContainerInner({
           <FullscreenResizeHandler isFullscreen={true} />
           <MapRecenter center={activeCenter} />
           <CoordinatesBadge initialCenter={center} />
-          <SatelliteCaptureBadge lastCaptureDate={lastCaptureDate} captureDates={captureDates} />
           <BasemapControl basemap={basemap} />
           {features && (
             <FieldLayer
@@ -512,23 +423,6 @@ export function MapContainerInner({
                   {(inspectedFeature.properties.class_confidence * 100).toFixed(0)}%
                 </div>
               </div>
-            </div>
-
-            {/* Last Satellite Image Date */}
-            <div className="p-2 sm:p-2.5 rounded-xl bg-stone-800/90 border border-stone-700/60 flex items-center justify-between text-xs shrink-0">
-              <span className="text-stone-400 flex items-center gap-1.5 font-medium text-[11px]">
-                <Satellite className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                Last Image Taken:
-              </span>
-              <span className="font-bold text-emerald-300 font-mono text-[11px] sm:text-xs">
-                {inspectedFeature.properties.capture_timestamp_sec
-                  ? new Date(inspectedFeature.properties.capture_timestamp_sec * 1000).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })
-                  : lastCaptureDate}
-              </span>
             </div>
 
             {/* AMED Historical Timeline (Sorted Newest/Present to Oldest) */}
@@ -674,7 +568,6 @@ export function MapContainerInner({
         >
           <MapRecenter center={activeCenter} />
           <CoordinatesBadge initialCenter={center} />
-          <SatelliteCaptureBadge lastCaptureDate={lastCaptureDate} captureDates={captureDates} />
           <BasemapControl basemap={basemap} />
           {onLoadCurrentView && (
             <MapLoadCenterButton onLoad={onLoadCurrentView} />

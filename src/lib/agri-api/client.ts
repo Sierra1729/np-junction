@@ -12,7 +12,6 @@ import {
   getMockLookupResponse,
   getMockMonitorResponse,
 } from "./mock";
-import { s2CellIdToCenterLatLng } from "../geo/s2";
 
 const BASE_URL = "https://agriculturalunderstanding.googleapis.com";
 
@@ -119,18 +118,11 @@ async function postWithRetry<T>(endpoint: string, body: unknown): Promise<T> {
 /**
  * 1. POST /v1:lookupLandscape (ALU)
  */
-export async function lookupLandscape(
-  request: LookupLandscapeRequest,
-  centerCoords?: { latitude: number; longitude: number }
-): Promise<LookupLandscapeResponse> {
+export async function lookupLandscape(request: LookupLandscapeRequest): Promise<LookupLandscapeResponse> {
   const s2CellId = request.locationSpecifier.s2CellId || "default";
-  const coords =
-    centerCoords ||
-    request.locationSpecifier.coordinates ||
-    (s2CellId && s2CellId !== "default" ? s2CellIdToCenterLatLng(s2CellId) : undefined);
 
   if (isMockMode()) {
-    return getMockLookupResponse(s2CellId, coords);
+    return getMockLookupResponse(s2CellId);
   }
 
   return agriApiLimiter(() => postWithRetry<LookupLandscapeResponse>("/v1:lookupLandscape", request));
@@ -139,18 +131,11 @@ export async function lookupLandscape(
 /**
  * 2. POST /v1:monitorLandscape (AMED)
  */
-export async function monitorLandscape(
-  request: MonitorLandscapeRequest,
-  centerCoords?: { latitude: number; longitude: number }
-): Promise<MonitorLandscapeResponse> {
+export async function monitorLandscape(request: MonitorLandscapeRequest): Promise<MonitorLandscapeResponse> {
   const s2CellId = request.locationSpecifier.s2CellId || "default";
-  const coords =
-    centerCoords ||
-    request.locationSpecifier.coordinates ||
-    (s2CellId && s2CellId !== "default" ? s2CellIdToCenterLatLng(s2CellId) : undefined);
 
   if (isMockMode()) {
-    return getMockMonitorResponse(s2CellId, coords);
+    return getMockMonitorResponse(s2CellId);
   }
 
   return agriApiLimiter(() => postWithRetry<MonitorLandscapeResponse>("/v1:monitorLandscape", request));
@@ -160,17 +145,10 @@ export async function monitorLandscape(
  * 3. POST /v1:lookupLandscapeCaptureDate (ALU)
  */
 export async function lookupLandscapeCaptureDate(
-  locationSpecifier: MonitorLandscapeRequest["locationSpecifier"],
-  centerCoords?: { latitude: number; longitude: number }
+  locationSpecifier: MonitorLandscapeRequest["locationSpecifier"]
 ): Promise<CaptureDate[]> {
-  const s2CellId = locationSpecifier.s2CellId || "default";
-  const coords =
-    centerCoords ||
-    locationSpecifier.coordinates ||
-    (s2CellId && s2CellId !== "default" ? s2CellIdToCenterLatLng(s2CellId) : undefined);
-
   if (isMockMode()) {
-    return getMockCaptureDates(coords).captureDates;
+    return getMockCaptureDates().captureDates;
   }
 
   const res = await agriApiLimiter(() =>
