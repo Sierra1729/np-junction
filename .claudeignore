@@ -1,0 +1,21 @@
+# Ignore large research papers causing context overflow
+*.pdf
+
+# Ignore large package manager lockfiles
+package-lock.json
+package-lock.*
+yarn.lock
+pnpm-lock.yaml
+
+# Ignore large fixtures and static assets
+public/data/
+public/**/*.svg
+public/**/*.ico
+
+# Ignore compiled/build outputs
+.next/
+.firebase/
+node_modules/
+dist/
+build/
+*.tsbuildinfo
