@@ -25,7 +25,7 @@ import {
   Plus,
   Satellite,
 } from "lucide-react";
-import { findMatchingField } from "@/lib/geo/turf-utils";
+import { findMatchingField, createParcelForPoint } from "@/lib/geo/turf-utils";
 import Papa from "papaparse";
 
 interface FarmerOption {
@@ -736,12 +736,20 @@ export default function VerifyClaimPage() {
                 onFieldClick={handleFieldClick}
                 onMapClick={(ll) => {
                   if (mapFeatures) {
-                    const existing = findMatchingField([ll.lng, ll.lat], mapFeatures.features);
+                    const existing = findMatchingField([ll.lng, ll.lat], mapFeatures.features, 20);
                     if (existing) {
                       handleFieldClick(existing);
                       return;
                     }
                   }
+                  const newParcel = createParcelForPoint(ll.lat, ll.lng);
+                  setMapFeatures((prev) =>
+                    mergeFeatureCollections(prev, {
+                      type: "FeatureCollection",
+                      features: [newParcel],
+                    })
+                  );
+                  setSelectedFieldIds([newParcel.id]);
                   setCurrentCoords(ll);
                   fetchSatelliteData(ll.lat, ll.lng, ll);
                 }}

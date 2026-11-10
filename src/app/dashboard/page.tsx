@@ -29,7 +29,7 @@ import {
   Loader2,
   Satellite,
 } from "lucide-react";
-import { findMatchingField } from "@/lib/geo/turf-utils";
+import { findMatchingField, createParcelForPoint } from "@/lib/geo/turf-utils";
 import {
   PieChart,
   Pie,
@@ -225,16 +225,31 @@ export default function FpoDashboardPage() {
   const handleMapClick = async (latLng: { lat: number; lng: number }) => {
     // 1. If clicked on an existing parcel boundary, select/inspect it
     if (mapFeatures) {
-      const existingMatch = findMatchingField([latLng.lng, latLng.lat], mapFeatures.features);
+      const existingMatch = findMatchingField([latLng.lng, latLng.lat], mapFeatures.features, 20);
       if (existingMatch) {
         handleFieldClick(existingMatch);
         return;
       }
     }
 
-    // 2. Clicked on an unmapped patch: fetch satellite detections & create boundary!
+    // 2. Clicked on an unmapped patch: immediately create and highlight its parcel boundary!
+    const newParcel = createParcelForPoint(latLng.lat, latLng.lng);
+    setMapFeatures((prev) =>
+      mergeFeatureCollections(prev, {
+        type: "FeatureCollection",
+        features: [newParcel],
+      })
+    );
+    setActiveFeature(newParcel);
+    setSelectedFieldIds([newParcel.id]);
+    setDrawerOpen(true);
+
+    const acres = (newParcel.properties.area_sq_m / 4046.86).toFixed(2);
+    setTileNotice(`Detected parcel boundary for ${newParcel.id} (${acres} acres).`);
+    setTimeout(() => setTileNotice(null), 3500);
+
+    // 3. Asynchronously fetch surrounding landscape context and capture dates from satellite engine
     setIsFetchingTile(true);
-    setTileNotice("Analyzing satellite imagery & detecting parcel boundary...");
     try {
       const res = await fetch("/api/agri/monitor", {
         method: "POST",
@@ -244,26 +259,10 @@ export default function FpoDashboardPage() {
       const data = await res.json();
       if (data.featureCollection && data.featureCollection.features?.length > 0) {
         setMapFeatures((prev) => mergeFeatureCollections(prev, data.featureCollection));
-        
-        // Find and select the parcel for the clicked patch
-        const matched =
-          findMatchingField([latLng.lng, latLng.lat], data.featureCollection.features) ||
-          data.featureCollection.features.find((f: AgriFeature) => f.properties.alu_type === "field") ||
-          data.featureCollection.features[0];
-
-        if (matched) {
-          setActiveFeature(matched);
-          setSelectedFieldIds([matched.id]);
-          setDrawerOpen(true);
-          const acres = (matched.properties.area_sq_m / 4046.86).toFixed(2);
-          setTileNotice(`Detected parcel boundary for ${matched.id} (${acres} acres).`);
-        }
-        setTimeout(() => setTileNotice(null), 3500);
       }
       fetchCaptureDates(latLng.lat, latLng.lng);
     } catch (err) {
       console.error("Map click fetch error:", err);
-      setTileNotice(null);
     } finally {
       setIsFetchingTile(false);
     }
