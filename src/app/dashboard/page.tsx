@@ -82,14 +82,14 @@ export default function FpoDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [farmers, setFarmers] = useState<any[]>([]);
   const [claims, setClaims] = useState<any[]>([]);
-  const [mapFeatures, setMapFeatures] = useState<AgriFeatureCollection | null>(null);
+  const [mapFeatures, setMapFeatures] = useState<AgriFeatureCollection | null>(REAL_KOTLI_ARJUN_SINGH_PARCELS);
 
   // Filters
   const [selectedVillage, setSelectedVillage] = useState<string>("ALL");
   const [selectedCrop, setSelectedCrop] = useState<string>("ALL");
   const [selectedOrganicStatus, setSelectedOrganicStatus] = useState<string>("ALL");
 
-  // Selected field drawer & multi-plot selection
+  // Selected field drawer & single-plot selection
   const [activeFeature, setActiveFeature] = useState<AgriFeature | null>(null);
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -231,11 +231,15 @@ export default function FpoDashboardPage() {
     : null;
 
   const handleFieldClick = (feat: AgriFeature) => {
-    setActiveFeature(feat);
-    setDrawerOpen(true);
-    setSelectedFieldIds((prev) =>
-      prev.includes(feat.id) ? prev.filter((id) => id !== feat.id) : [...prev, feat.id]
-    );
+    if (selectedFieldIds.length === 1 && selectedFieldIds[0] === feat.id) {
+      setSelectedFieldIds([]);
+      setActiveFeature(null);
+      setDrawerOpen(false);
+    } else {
+      setActiveFeature(feat);
+      setDrawerOpen(true);
+      setSelectedFieldIds([feat.id]);
+    }
   };
 
   const handleMapClick = async (latLng: { lat: number; lng: number }) => {

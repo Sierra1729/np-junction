@@ -88,7 +88,7 @@ export default function VerifyClaimPage() {
   const [year, setYear] = useState<number>(2026);
 
   // Map & API Features State
-  const [mapFeatures, setMapFeatures] = useState<AgriFeatureCollection | null>(null);
+  const [mapFeatures, setMapFeatures] = useState<AgriFeatureCollection | null>(REAL_KOTLI_ARJUN_SINGH_PARCELS);
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
   const [isLoadingSatellite, setIsLoadingSatellite] = useState(false);
   const [liveScores, setLiveScores] = useState<VerificationScores | null>(null);
@@ -268,13 +268,13 @@ export default function VerifyClaimPage() {
     }
   };
 
-  // Toggle field selection on map click
+  // Single field selection on map click (or deselect if clicking the same field)
   const handleFieldClick = (feature: AgriFeature) => {
     setSelectedFieldIds((prev) => {
-      if (prev.includes(feature.id)) {
-        return prev.filter((id) => id !== feature.id);
+      if (prev.length === 1 && prev[0] === feature.id) {
+        return [];
       } else {
-        return [...prev, feature.id];
+        return [feature.id];
       }
     });
   };
