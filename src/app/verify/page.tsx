@@ -23,7 +23,9 @@ import {
   Users,
   Download,
   Plus,
+  Satellite,
 } from "lucide-react";
+import { findMatchingField } from "@/lib/geo/turf-utils";
 import Papa from "papaparse";
 
 interface FarmerOption {
@@ -108,8 +110,34 @@ export default function VerifyClaimPage() {
       .catch((err) => console.error(err));
   }, []);
 
+  const [captureDates, setCaptureDates] = useState<any[]>([
+    { year: 2026, month: 9, day: 12 },
+    { year: 2026, month: 7, day: 24 },
+    { year: 2026, month: 3, day: 10 },
+  ]);
+  const [latestCaptureDate, setLatestCaptureDate] = useState<string>("12 Sep 2026");
+
+  const fetchCaptureDates = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch("/api/agri/capture-dates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude: lat, longitude: lng }),
+      });
+      const data = await res.json();
+      if (data.captureDates && data.captureDates.length > 0) {
+        setCaptureDates(data.captureDates);
+        const latest = data.captureDates[0];
+        const dt = new Date(latest.year, latest.month - 1, latest.day);
+        setLatestCaptureDate(dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Fetch satellite features for current coordinates
-  const fetchSatelliteData = async (lat: number, lng: number) => {
+  const fetchSatelliteData = async (lat: number, lng: number, autoSelectPoint?: { lat: number; lng: number }) => {
     setIsLoadingSatellite(true);
     try {
       const res = await fetch("/api/agri/monitor", {
@@ -121,14 +149,17 @@ export default function VerifyClaimPage() {
       if (data.featureCollection) {
         setMapFeatures((prev) => mergeFeatureCollections(prev, data.featureCollection));
 
-        // Auto select first field near center if none selected
-        const fields = data.featureCollection.features.filter(
-          (f: AgriFeature) => f.properties.alu_type === "field"
-        );
-        if (fields.length > 0 && selectedFieldIds.length === 0) {
-          setSelectedFieldIds([fields[0].id]);
+        // Auto select matched field for clicked/target point
+        const point = autoSelectPoint || { lat, lng };
+        const matched =
+          findMatchingField([point.lng, point.lat], data.featureCollection.features) ||
+          data.featureCollection.features.find((f: AgriFeature) => f.properties.alu_type === "field");
+
+        if (matched) {
+          setSelectedFieldIds([matched.id]);
         }
       }
+      fetchCaptureDates(lat, lng);
     } catch (err) {
       console.error("Satellite fetch error:", err);
     } finally {
@@ -704,12 +735,19 @@ export default function VerifyClaimPage() {
                 selectedFieldIds={selectedFieldIds}
                 onFieldClick={handleFieldClick}
                 onMapClick={(ll) => {
+                  if (mapFeatures) {
+                    const existing = findMatchingField([ll.lng, ll.lat], mapFeatures.features);
+                    if (existing) {
+                      handleFieldClick(existing);
+                      return;
+                    }
+                  }
                   setCurrentCoords(ll);
-                  fetchSatelliteData(ll.lat, ll.lng);
+                  fetchSatelliteData(ll.lat, ll.lng, ll);
                 }}
                 onLoadCurrentView={(ll) => {
                   setCurrentCoords(ll);
-                  fetchSatelliteData(ll.lat, ll.lng);
+                  fetchSatelliteData(ll.lat, ll.lng, ll);
                 }}
                 onPolygonDrawn={(geom) => {
                   setDrawnPolygon(geom);
@@ -719,7 +757,7 @@ export default function VerifyClaimPage() {
                 showSelectionTray={true}
                 onAreaSelect={(area) => {
                   setCurrentCoords({ lat: area.lat, lng: area.lng });
-                  fetchSatelliteData(area.lat, area.lng);
+                  fetchSatelliteData(area.lat, area.lng, { lat: area.lat, lng: area.lng });
                 }}
                 isSearchingArea={isLoadingSatellite}
                 onClearSelection={() => setSelectedFieldIds([])}
@@ -729,6 +767,8 @@ export default function VerifyClaimPage() {
                     setSelectedFieldIds(fields.map((f) => f.id));
                   }
                 }}
+                lastCaptureDate={latestCaptureDate}
+                captureDates={captureDates}
                 className="h-[560px] w-full"
               />
               {isLoadingSatellite && (
@@ -822,6 +862,8 @@ export default function VerifyClaimPage() {
                 <SatelliteAttribution
                   dataVersion="2026.09.1"
                   updateTime="2026-09-15T04:30:00Z"
+                  lastCaptureDate={latestCaptureDate}
+                  captureDates={captureDates}
                 />
               </div>
             )}

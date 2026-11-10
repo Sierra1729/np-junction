@@ -27,7 +27,9 @@ import {
   X,
   FileSpreadsheet,
   Loader2,
+  Satellite,
 } from "lucide-react";
+import { findMatchingField } from "@/lib/geo/turf-utils";
 import {
   PieChart,
   Pie,
@@ -97,6 +99,33 @@ export default function FpoDashboardPage() {
   const [isFetchingTile, setIsFetchingTile] = useState<boolean>(false);
   const [tileNotice, setTileNotice] = useState<string | null>(null);
   const [areaCoverageNotice, setAreaCoverageNotice] = useState<string | null>(null);
+  const [captureDates, setCaptureDates] = useState<any[]>([
+    { year: 2026, month: 9, day: 12 },
+    { year: 2026, month: 7, day: 24 },
+    { year: 2026, month: 3, day: 10 },
+    { year: 2025, month: 11, day: 5 },
+    { year: 2025, month: 8, day: 18 },
+  ]);
+  const [latestCaptureDate, setLatestCaptureDate] = useState<string>("12 Sep 2026");
+
+  const fetchCaptureDates = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch("/api/agri/capture-dates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude: lat, longitude: lng }),
+      });
+      const data = await res.json();
+      if (data.captureDates && data.captureDates.length > 0) {
+        setCaptureDates(data.captureDates);
+        const latest = data.captureDates[0];
+        const dt = new Date(latest.year, latest.month - 1, latest.day);
+        setLatestCaptureDate(dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }));
+      }
+    } catch (e) {
+      console.error("Capture dates error:", e);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -115,6 +144,8 @@ export default function FpoDashboardPage() {
       })
       .catch((err) => console.error("Dashboard data error:", err))
       .finally(() => setLoading(false));
+
+    fetchCaptureDates(32.624964, 74.752361);
   }, []);
 
   // Compute KPI metrics
@@ -192,8 +223,18 @@ export default function FpoDashboardPage() {
   };
 
   const handleMapClick = async (latLng: { lat: number; lng: number }) => {
+    // 1. If clicked on an existing parcel boundary, select/inspect it
+    if (mapFeatures) {
+      const existingMatch = findMatchingField([latLng.lng, latLng.lat], mapFeatures.features);
+      if (existingMatch) {
+        handleFieldClick(existingMatch);
+        return;
+      }
+    }
+
+    // 2. Clicked on an unmapped patch: fetch satellite detections & create boundary!
     setIsFetchingTile(true);
-    setTileNotice("Fetching satellite boundaries around clicked field...");
+    setTileNotice("Analyzing satellite imagery & detecting parcel boundary...");
     try {
       const res = await fetch("/api/agri/monitor", {
         method: "POST",
@@ -203,9 +244,23 @@ export default function FpoDashboardPage() {
       const data = await res.json();
       if (data.featureCollection && data.featureCollection.features?.length > 0) {
         setMapFeatures((prev) => mergeFeatureCollections(prev, data.featureCollection));
-        setTileNotice(`Loaded ${data.featureCollection.features.length} parcels around this area.`);
-        setTimeout(() => setTileNotice(null), 3000);
+        
+        // Find and select the parcel for the clicked patch
+        const matched =
+          findMatchingField([latLng.lng, latLng.lat], data.featureCollection.features) ||
+          data.featureCollection.features.find((f: AgriFeature) => f.properties.alu_type === "field") ||
+          data.featureCollection.features[0];
+
+        if (matched) {
+          setActiveFeature(matched);
+          setSelectedFieldIds([matched.id]);
+          setDrawerOpen(true);
+          const acres = (matched.properties.area_sq_m / 4046.86).toFixed(2);
+          setTileNotice(`Detected parcel boundary for ${matched.id} (${acres} acres).`);
+        }
+        setTimeout(() => setTileNotice(null), 3500);
       }
+      fetchCaptureDates(latLng.lat, latLng.lng);
     } catch (err) {
       console.error("Map click fetch error:", err);
       setTileNotice(null);
@@ -232,6 +287,7 @@ export default function FpoDashboardPage() {
         setSelectedFieldIds([]);
         setActiveFeature(null);
       }
+      fetchCaptureDates(area.lat, area.lng);
     } catch (e) {
       console.error(e);
       setAreaCoverageNotice("Unable to reach satellite service for this area.");
@@ -415,6 +471,8 @@ export default function FpoDashboardPage() {
               actionLabel="Verify Claim for Selected Plots"
               actionHref={`/verify?lat=${currentCenter[0]}&lng=${currentCenter[1]}&plots=${selectedFieldIds.join(",")}`}
               onLoadCurrentView={handleMapClick}
+              lastCaptureDate={latestCaptureDate}
+              captureDates={captureDates}
               className="h-[620px] w-full"
             />
             {isFetchingTile && (
@@ -425,7 +483,12 @@ export default function FpoDashboardPage() {
             )}
           </div>
 
-          <SatelliteAttribution dataVersion="2026.09.1" updateTime="2026-09-15T04:30:00Z" />
+          <SatelliteAttribution
+            dataVersion="2026.09.1"
+            updateTime="2026-09-15T04:30:00Z"
+            lastCaptureDate={latestCaptureDate}
+            captureDates={captureDates}
+          />
         </div>
 
         {/* Right Column: Crop Mix & Side Drawer (4 cols) */}
@@ -532,6 +595,23 @@ export default function FpoDashboardPage() {
                     {(activeFeature.properties.class_confidence * 100).toFixed(0)}%
                   </div>
                 </div>
+              </div>
+
+              {/* Last Satellite Image Taken */}
+              <div className="p-3 bg-stone-50 dark:bg-stone-800/90 border border-stone-200 dark:border-stone-700/60 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-stone-500 dark:text-stone-300 flex items-center gap-1.5 font-semibold">
+                  <Satellite className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Last Satellite Image:
+                </span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono text-xs">
+                  {activeFeature.properties.capture_timestamp_sec
+                    ? new Date(activeFeature.properties.capture_timestamp_sec * 1000).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : latestCaptureDate}
+                </span>
               </div>
 
               {/* Multi-Season History (Newest to Oldest) */}

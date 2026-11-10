@@ -7,7 +7,7 @@ import {
   LookupLandscapeCaptureDateResponse,
   CaptureDate,
 } from "./types";
-import { latLngToS2CellIdLevel13 } from "../geo/s2";
+import { latLngToS2CellIdLevel13, s2CellIdToCenterLatLng } from "../geo/s2";
 
 export const DEMO_CENTER = {
   latitude: 18.624,
@@ -45,8 +45,9 @@ export function generateDemoFeatures(centerLat: number = 18.624, centerLng: numb
   const lngStep = 0.0014; // ~140 meters
   const rows = 6;
   const cols = 6;
-  const baseLat = centerLat - (rows / 2) * latStep;
-  const baseLng = centerLng - (cols / 2) * lngStep;
+  // Center grid so that the central cell precisely envelops the requested (centerLat, centerLng) point
+  const baseLat = centerLat - (rows / 2 - 0.5) * latStep;
+  const baseLng = centerLng - (cols / 2 - 0.5) * lngStep;
 
   const isNorthIndia = centerLat > 28.0;
 
@@ -213,7 +214,7 @@ export function generateDemoFeatures(centerLat: number = 18.624, centerLng: numb
       const ring = [p1, p2, p3, p4, p1];
 
       const areaSqM = Math.round(9500 + ((row * 7 + col * 13 + latHash) % 11) * 1250);
-      const plusCode = `8V${latHash}P${col + 1}+${fieldNumber}M`;
+      const plusCode = `8V${latHash.toString().padStart(3, "0")}${lngHash.toString().padStart(3, "0")}+${row}${col}M`;
 
       const templateIdx = (fieldNumber - 1) % templates.length;
       const predictions = templates[templateIdx](fieldNumber);
@@ -299,9 +300,11 @@ export function generateDemoFeatures(centerLat: number = 18.624, centerLng: numb
  * Returns mock LookupLandscapeResponse wrapping stringified GeoJSON
  */
 export function getMockLookupResponse(s2CellId: string, centerCoords?: { latitude: number; longitude: number }): LookupLandscapeResponse {
-  const fc = centerCoords
-    ? generateDemoFeatures(centerCoords.latitude, centerCoords.longitude)
-    : generateDemoFeatures();
+  const effectiveCenter =
+    s2CellId && s2CellId !== "default"
+      ? s2CellIdToCenterLatLng(s2CellId)
+      : centerCoords || DEMO_CENTER;
+  const fc = generateDemoFeatures(effectiveCenter.latitude, effectiveCenter.longitude);
   return {
     landscape: {
       dataVersion: DEMO_DATA_VERSION,
@@ -314,9 +317,11 @@ export function getMockLookupResponse(s2CellId: string, centerCoords?: { latitud
  * Returns mock MonitorLandscapeResponse wrapping stringified GeoJSON
  */
 export function getMockMonitorResponse(s2CellId: string, centerCoords?: { latitude: number; longitude: number }): MonitorLandscapeResponse {
-  const fc = centerCoords
-    ? generateDemoFeatures(centerCoords.latitude, centerCoords.longitude)
-    : generateDemoFeatures();
+  const effectiveCenter =
+    s2CellId && s2CellId !== "default"
+      ? s2CellIdToCenterLatLng(s2CellId)
+      : centerCoords || DEMO_CENTER;
+  const fc = generateDemoFeatures(effectiveCenter.latitude, effectiveCenter.longitude);
   return {
     monitoredLandscape: {
       dataVersion: DEMO_DATA_VERSION,
@@ -328,7 +333,7 @@ export function getMockMonitorResponse(s2CellId: string, centerCoords?: { latitu
 /**
  * Returns mock capture dates
  */
-export function getMockCaptureDates(): LookupLandscapeCaptureDateResponse {
+export function getMockCaptureDates(centerCoords?: { latitude: number; longitude: number }): LookupLandscapeCaptureDateResponse {
   return {
     captureDates: DEMO_CAPTURE_DATES,
   };

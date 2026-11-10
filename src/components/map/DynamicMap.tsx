@@ -25,6 +25,8 @@ export interface DynamicMapProps {
   actionHref?: string;
   onActionClick?: () => void;
   onLoadCurrentView?: (center: { lat: number; lng: number }) => void;
+  lastCaptureDate?: string;
+  captureDates?: Array<{ year: number; month: number; day: number }>;
 }
 
 const DynamicMapInner = dynamic(
