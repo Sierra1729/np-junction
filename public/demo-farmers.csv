@@ -1,0 +1,11 @@
+farmer_id,name,village,phone,lat,lng,claimed_crop,claimed_area,unit,organic_status
+FPO-MH-2026-001,Ramesh Patil,Ranjangaon,+91 9820000001,18.6242,73.0762,Rice,3.1,acre,NPOP
+FPO-MH-2026-002,Suresh Jadhav,Shirur,+91 9820000002,18.6255,73.0775,Wheat,2.4,acre,PGS_INDIA
+FPO-MH-2026-003,Ganesh Shinde,Khed,+91 9820000003,18.6231,73.0748,Cotton,3.5,acre,IN_CONVERSION
+FPO-MH-2026-004,Pandurang Pawar,Baramati,+91 9820000004,18.6268,73.0789,Soybeans,2.0,acre,NONE
+FPO-MH-2026-005,Santosh Kadam,Daund,+91 9820000005,18.6215,73.0732,Mustard,1.8,acre,NPOP
+FPO-MH-2026-006,Tukaram Chavan,Junnar,+91 9820000006,18.6272,73.0765,Sugarcane,4.2,acre,PGS_INDIA
+FPO-MH-2026-007,Namdeo Deshmukh,Ranjangaon,+91 9820000007,18.6228,73.0754,Gram,2.8,acre,IN_CONVERSION
+FPO-MH-2026-008,Ananda Gaikwad,Shirur,+91 9820000008,18.6280,73.0792,Corn,3.0,acre,NONE
+FPO-MH-2026-009,Balasaheb More,Khed,+91 9820000009,18.6235,73.0718,Groundnut,2.2,acre,NPOP
+FPO-MH-2026-010,Dattatray Bhosale,Baramati,+91 9820000010,18.6250,73.0740,Bajra,1.5,acre,NONE

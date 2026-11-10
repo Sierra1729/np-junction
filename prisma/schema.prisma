@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   // "FPO_ADMIN" | "FIELD_OFFICER"
+  password  String   // hashed or plain demo
+  createdAt DateTime @default(now())
+}
+
+model Farmer {
+  id                   String      @id @default(cuid())
+  farmerCode           String      @unique
+  name                 String
+  village              String
+  phone                String?
+  consentExactBoundary Boolean     @default(false)
+  organicStatus        String      @default("NONE") // NPOP | PGS_INDIA | IN_CONVERSION | NONE
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  claims               Claim[]
+  fields               Field[]
+  lotFarmers           LotFarmer[]
+}
+
+model Field {
+  plusCodeId        String             @id
+  s2CellId          String
+  geometry          String             // GeoJSON stringified
+  areaSqM           Float
+  aluConfidence     Float
+  captureTimestamp  DateTime
+  farmerId          String?
+  farmer            Farmer?            @relation(fields: [farmerId], references: [id])
+  createdAt         DateTime           @default(now())
+  seasons           SeasonPrediction[]
+  lotFields         LotField[]
+}
+
+model SeasonPrediction {
+  id          String   @id @default(cuid())
+  fieldId     String
+  field       Field    @relation(fields: [fieldId], references: [plusCodeId], onDelete: Cascade)
+  startTs     DateTime
+  endTs       DateTime
+  crop1       String
+  conf1       Float
+  crop2       String?
+  conf2       Float?
+  crop3       String?
+  conf3       Float?
+  dataVersion String
+  fetchedAt   DateTime @default(now())
+}
+
+model Claim {
+  id           String       @id @default(cuid())
+  farmerId     String
+  farmer       Farmer       @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  claimedCrop  String
+  claimedArea  Float
+  unit         String       // "acre" | "ha" | "kanal" | "bigha"
+  season       String       // "Kharif" | "Rabi" | "Zaid"
+  year         Int
+  locationJson String       // GeoJSON representation { type: 'Point'|'Polygon', coordinates: ... }
+  status       String       // "VERIFIED" | "NEEDS_VISIT" | "MISMATCH" | "PENDING"
+  scores       String       // JSON string { area, crop, history, boundary, overall }
+  reasons      String       // JSON array of strings
+  createdBy    String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  fieldVisits  FieldVisit[]
+  auditLogs    AuditLog[]
+}
+
+model FieldVisit {
+  id        String   @id @default(cuid())
+  claimId   String
+  claim     Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  officerId String
+  outcome   String   // "CONFIRMED" | "CORRECTED" | "REJECTED"
+  note      String?
+  photoUrl  String?
+  lat       Float
+  lng       Float
+  createdAt DateTime @default(now())
+}
+
+model Lot {
+  lotCode           String      @id
+  crop              String
+  quantityKg        Float
+  harvestDate       DateTime
+  certificationType String      // "NPOP" | "PGS_INDIA" | "IN_CONVERSION" | "NONE"
+  certificateUrl    String?
+  createdAt         DateTime    @default(now())
+  lotFields         LotField[]
+  lotFarmers        LotFarmer[]
+}
+
+model LotField {
+  lotCode    String
+  plusCodeId String
+  lot        Lot   @relation(fields: [lotCode], references: [lotCode], onDelete: Cascade)
+  field      Field @relation(fields: [plusCodeId], references: [plusCodeId], onDelete: Cascade)
+
+  @@id([lotCode, plusCodeId])
+}
+
+model LotFarmer {
+  lotCode   String
+  farmerId  String
+  lot       Lot    @relation(fields: [lotCode], references: [lotCode], onDelete: Cascade)
+  farmer    Farmer @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  @@id([lotCode, farmerId])
+}
+
+model ApiCache {
+  key         String   @id // endpoint:s2CellId:captureDate:dataVersion
+  payload     String   // Raw or parsed response JSON string
+  dataVersion String
+  updateTime  DateTime
+  fetchedAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id       String   @id @default(cuid())
+  entity   String   // "Claim" | "FieldVisit" | "Farmer" | "Lot"
+  entityId String
+  action   String   // "CREATE" | "UPDATE" | "VERIFY" | "VISIT_RECORDED"
+  userId   String
+  before   String?  // JSON string
+  after    String?  // JSON string
+  at       DateTime @default(now())
+  claimId  String?
+  claim    Claim?   @relation(fields: [claimId], references: [id])
+}
+
+model Settings {
+  id   Int    @id @default(1)
+  data String // JSON string
+}
