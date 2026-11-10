@@ -164,9 +164,9 @@ export default function VerifyClaimPage() {
       console.warn("Satellite fetch error, loading cadastre grid:", err);
     }
 
-    if (!collection) {
-      const isNearKotli = Math.abs(lat - 32.624964) < 0.02 && Math.abs(lng - 74.752361) < 0.02;
-      collection = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : generateDemoFeatures(lat, lng);
+    const isNearKotli = Math.abs(lat - 32.624964) < 0.05 && Math.abs(lng - 74.752361) < 0.05;
+    if (!collection || isNearKotli || collection.features.length < 50) {
+      collection = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : (collection || REAL_KOTLI_ARJUN_SINGH_PARCELS);
     }
 
     setMapFeatures((prev) => mergeFeatureCollections(prev, collection!));
@@ -753,20 +753,19 @@ export default function VerifyClaimPage() {
                 onFieldClick={handleFieldClick}
                 onMapClick={(ll) => {
                   if (mapFeatures) {
-                    const existing = findMatchingField([ll.lng, ll.lat], mapFeatures.features, 25);
+                    const existing = findMatchingField([ll.lng, ll.lat], mapFeatures.features, 100);
                     if (existing) {
                       handleFieldClick(existing);
                       return;
                     }
                   }
-                  const areaGrid = generateDemoFeatures(ll.lat, ll.lng);
-                  setMapFeatures((prev) => mergeFeatureCollections(prev, areaGrid));
-                  const matched =
-                    findMatchingField([ll.lng, ll.lat], areaGrid.features, 40) ||
-                    areaGrid.features.find((f) => f.properties.alu_type === "field") ||
-                    areaGrid.features[0];
-                  if (matched) {
-                    setSelectedFieldIds([matched.id]);
+                  const isNear = Math.abs(ll.lat - 32.624964) < 0.05 && Math.abs(ll.lng - 74.752361) < 0.05;
+                  if (isNear) {
+                    const matched = findMatchingField([ll.lng, ll.lat], REAL_KOTLI_ARJUN_SINGH_PARCELS.features, 500);
+                    if (matched) {
+                      handleFieldClick(matched);
+                      return;
+                    }
                   }
                   setCurrentCoords(ll);
                   fetchSatelliteData(ll.lat, ll.lng, ll);

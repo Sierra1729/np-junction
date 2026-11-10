@@ -148,7 +148,7 @@ export default function FpoDashboardPage() {
       .then(([farmersRes, claimsRes, monitorRes]: [any, any, any]) => {
         if (farmersRes?.farmers) setFarmers(farmersRes.farmers);
         if (claimsRes?.claims) setClaims(claimsRes.claims);
-        if (monitorRes?.featureCollection && monitorRes.featureCollection.features?.length > 0) {
+        if (monitorRes?.featureCollection && monitorRes.featureCollection.features?.length > 100) {
           setMapFeatures(monitorRes.featureCollection);
         } else {
           // Always ensure the precise Kotli Arjun Singh 300-parcel real cadastre is loaded!
@@ -243,34 +243,30 @@ export default function FpoDashboardPage() {
   };
 
   const handleMapClick = async (latLng: { lat: number; lng: number }) => {
-    // 1. If clicked on an existing parcel boundary, select/inspect it
+    // 1. If clicked on or near an existing parcel boundary, select/inspect it
     if (mapFeatures) {
-      const existingMatch = findMatchingField([latLng.lng, latLng.lat], mapFeatures.features, 25);
+      const existingMatch = findMatchingField([latLng.lng, latLng.lat], mapFeatures.features, 100);
       if (existingMatch) {
         handleFieldClick(existingMatch);
         return;
       }
     }
 
-    // 2. Clicked on an unmapped patch at a distance: generate and display the full agricultural cadastre grid system for this area!
-    setIsFetchingTile(true);
-    setTileNotice("Mapping agricultural cadastre grid for this area...");
+    const isNearKotli =
+      Math.abs(latLng.lat - 32.624964) < 0.05 &&
+      Math.abs(latLng.lng - 74.752361) < 0.05;
 
-    const areaGrid = generateDemoFeatures(latLng.lat, latLng.lng);
-    setMapFeatures((prev) => mergeFeatureCollections(prev, areaGrid));
-
-    const clickedParcel =
-      findMatchingField([latLng.lng, latLng.lat], areaGrid.features, 40) ||
-      areaGrid.features.find((f) => f.properties.alu_type === "field") ||
-      areaGrid.features[0];
-
-    if (clickedParcel) {
-      setActiveFeature(clickedParcel);
-      setSelectedFieldIds([clickedParcel.id]);
-      setDrawerOpen(true);
+    if (isNearKotli) {
+      const match = findMatchingField([latLng.lng, latLng.lat], REAL_KOTLI_ARJUN_SINGH_PARCELS.features, 500);
+      if (match) {
+        handleFieldClick(match);
+        return;
+      }
     }
 
-    // 3. Asynchronously fetch surrounding landscape context and capture dates if API is active
+    // 2. Fetch satellite boundaries dynamically without square grids
+    setIsFetchingTile(true);
+    setTileNotice("Fetching satellite boundaries...");
     try {
       const res = await fetch("/api/agri/monitor", {
         method: "POST",
@@ -281,11 +277,15 @@ export default function FpoDashboardPage() {
         const data = await res.json();
         if (data.featureCollection && data.featureCollection.features?.length > 0) {
           setMapFeatures((prev) => mergeFeatureCollections(prev, data.featureCollection));
+          const clickedParcel = findMatchingField([latLng.lng, latLng.lat], data.featureCollection.features, 100);
+          if (clickedParcel) {
+            handleFieldClick(clickedParcel);
+          }
         }
       }
       fetchCaptureDates(latLng.lat, latLng.lng);
-    } catch (err) {
-      // Local cadastre grid already loaded seamlessly
+    } catch {
+      // ignore
     } finally {
       setIsFetchingTile(false);
       setTileNotice(null);
@@ -298,12 +298,14 @@ export default function FpoDashboardPage() {
     setIsSearchingArea(true);
     setAreaCoverageNotice(null);
 
-    // If near Kotli Arjun Singh load real parcels, otherwise generate the cadastre grid for the selected area
-    const isNearKotli = Math.abs(area.lat - 32.624964) < 0.02 && Math.abs(area.lng - 74.752361) < 0.02;
-    const areaGrid = isNearKotli ? REAL_KOTLI_ARJUN_SINGH_PARCELS : generateDemoFeatures(area.lat, area.lng);
-    setMapFeatures((prev) => mergeFeatureCollections(prev, areaGrid));
-    setSelectedFieldIds([]);
-    setActiveFeature(null);
+    const isNearKotli = Math.abs(area.lat - 32.624964) < 0.05 && Math.abs(area.lng - 74.752361) < 0.05;
+    if (isNearKotli) {
+      setMapFeatures(REAL_KOTLI_ARJUN_SINGH_PARCELS);
+      setSelectedFieldIds([]);
+      setActiveFeature(null);
+      setIsSearchingArea(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/agri/monitor", {
@@ -315,11 +317,14 @@ export default function FpoDashboardPage() {
         const data = await res.json();
         if (data.featureCollection && data.featureCollection.features?.length > 0) {
           setMapFeatures((prev) => mergeFeatureCollections(prev, data.featureCollection));
+          setSelectedFieldIds([]);
+          setActiveFeature(null);
         }
       }
       fetchCaptureDates(area.lat, area.lng);
     } catch (e) {
-      // Local cadastre grid loaded
+      console.error(e);
+      setAreaCoverageNotice("Unable to reach satellite service for this area.");
     } finally {
       setIsSearchingArea(false);
     }
