@@ -1,13 +1,11 @@
 {
   "hosting": {
-    "source": ".",
+    "public": ".firebase/np-junction/hosting",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ],
-    "frameworksBackend": {
-      "region": "us-central1"
-    }
+    "cleanUrls": true
   }
 }
